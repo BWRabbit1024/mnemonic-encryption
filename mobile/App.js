@@ -33,6 +33,7 @@ import { SecureMnemonicEncryption, PasswordStrengthChecker } from './crypto/Secu
 import MnemonicScanModal from './components/MnemonicScanModal';
 import { validateMnemonicWords } from './utils/bip39';
 import Constants from 'expo-constants';
+import Purchases from 'react-native-purchases';
 
 // Translation object
 const translations = {
@@ -80,6 +81,30 @@ const translations = {
     onlineModeDesc: 'Security disabled - encryption/decryption unavailable',
     onlineModeWarning: 'Security Warning',
     onlineModeWarningMsg: 'When Internet Connected mode is enabled, encryption and decryption features are disabled for security reasons. Your sensitive data should only be processed on an offline device.',
+    // Premium features
+    premium: 'Premium',
+    upgradeToPremium: 'Upgrade to Premium',
+    premiumFeatures: 'Premium Features',
+    premiumActive: 'Premium Active',
+    premiumDescription: 'Unlock convenience features',
+    qrCodeGeneration: 'QR Code Generation',
+    qrCodeScanning: 'QR Code Scanning',
+    quickDeviceTransfer: 'Quick Device Transfer',
+    oneTimePurchase: 'One-time purchase • Lifetime access',
+    restorePurchases: 'Restore Purchases',
+    premiumFeature: 'Premium Feature',
+    premiumPromptMessage: 'QR Code features are available in Premium.\n\nPremium includes:\n• QR Code Generation\n• QR Code Scanning\n• Quick device transfers\n\nOne-time payment: $4.99',
+    maybeLater: 'Maybe Later',
+    learnMore: 'Learn More',
+    upgradeNow: 'Upgrade Now',
+    success: 'Success',
+    premiumUnlocked: 'Premium features unlocked!',
+    purchaseFailed: 'Purchase Failed',
+    premiumRestored: 'Premium access restored!',
+    noPurchases: 'No Purchases',
+    noPurchasesFound: 'No previous purchases found.',
+    restoreFailed: 'Restore Failed',
+    purchasing: 'Processing...',
     // Encrypt screen
     encryptTitle: 'Encrypt Mnemonic',
     mnemonicPhrase: 'Mnemonic Phrase:',
@@ -335,6 +360,30 @@ const translations = {
     onlineModeDesc: '安全已禁用 - 加密/解密不可用',
     onlineModeWarning: '安全警告',
     onlineModeWarningMsg: '当启用联网设备模式时，出于安全原因，加密和解密功能将被禁用。您的敏感数据应仅在离线设备上处理。',
+    // Premium features
+    premium: '高级版',
+    upgradeToPremium: '升级到高级版',
+    premiumFeatures: '高级功能',
+    premiumActive: '高级版已激活',
+    premiumDescription: '解锁便捷功能',
+    qrCodeGeneration: '二维码生成',
+    qrCodeScanning: '二维码扫描',
+    quickDeviceTransfer: '快速设备传输',
+    oneTimePurchase: '一次性购买 • 终身访问',
+    restorePurchases: '恢复购买',
+    premiumFeature: '高级功能',
+    premiumPromptMessage: '二维码功能为高级版功能。\n\n高级版包括：\n• 二维码生成\n• 二维码扫描\n• 快速设备传输\n\n一次性付款：$4.99',
+    maybeLater: '稍后再说',
+    learnMore: '了解更多',
+    upgradeNow: '立即升级',
+    success: '成功',
+    premiumUnlocked: '高级功能已解锁！',
+    purchaseFailed: '购买失败',
+    premiumRestored: '高级访问已恢复！',
+    noPurchases: '无购买记录',
+    noPurchasesFound: '未找到之前的购买记录。',
+    restoreFailed: '恢复失败',
+    purchasing: '处理中...',
     // Encrypt screen
     encryptTitle: '加密助记词',
     mnemonicPhrase: '助记词短语：',
@@ -592,10 +641,96 @@ export default function App() {
   const [scannedQRData, setScannedQRData] = useState('');
   const [isQRScanning, setIsQRScanning] = useState(false);
 
+  // State for Premium features
+  const [isPremium, setIsPremium] = useState(false); // For development: set to false to test premium prompts
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
   const encryption = new SecureMnemonicEncryption();
 
   // Get current translations
   const t = translations[language];
+
+  // Initialize RevenueCat and check premium status
+  useEffect(() => {
+    const initializePurchases = async () => {
+      try {
+        // For development/testing only - set to true to bypass premium checks
+        // In production, this will be false and check real purchases
+        const TESTING_MODE = true;  // Set to false for production
+
+        if (TESTING_MODE) {
+          // For testing: you can toggle isPremium state manually
+          console.log('[Premium] Running in test mode - isPremium:', isPremium);
+          return;
+        }
+
+        // Production code - configure RevenueCat
+        // Note: You'll need to add your RevenueCat API keys before production
+        if (Platform.OS === 'android') {
+          await Purchases.configure({ apiKey: 'YOUR_ANDROID_API_KEY_HERE' });
+        } else if (Platform.OS === 'ios') {
+          await Purchases.configure({ apiKey: 'YOUR_IOS_API_KEY_HERE' });
+        }
+
+        // Check current customer info
+        const customerInfo = await Purchases.getCustomerInfo();
+        const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+        setIsPremium(hasAccess);
+        console.log('[Premium] Premium status:', hasAccess);
+      } catch (error) {
+        console.error('[Premium] Failed to initialize:', error);
+        // Default to free if initialization fails
+        setIsPremium(false);
+      }
+    };
+
+    initializePurchases();
+  }, []);
+
+  // Purchase premium function
+  const purchasePremium = async () => {
+    try {
+      setIsPurchasing(true);
+
+      // Get available offerings
+      const offerings = await Purchases.getOfferings();
+      if (offerings.current !== null) {
+        const productPackage = offerings.current.availablePackages[0];
+        const { customerInfo } = await Purchases.purchasePackage(productPackage);
+
+        // Check if purchase was successful
+        if (typeof customerInfo.entitlements.active['premium'] !== 'undefined') {
+          setIsPremium(true);
+          setShowPremiumModal(false);
+          Alert.alert(t.success || 'Success', t.premiumUnlocked || 'Premium features unlocked!');
+        }
+      }
+    } catch (error) {
+      if (!error.userCancelled) {
+        Alert.alert(t.purchaseFailed || 'Purchase Failed', error.message);
+      }
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  // Restore purchases function
+  const restorePurchases = async () => {
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+
+      if (hasAccess) {
+        setIsPremium(true);
+        Alert.alert(t.success || 'Success', t.premiumRestored || 'Premium access restored!');
+      } else {
+        Alert.alert(t.noPurchases || 'No Purchases', t.noPurchasesFound || 'No previous purchases found.');
+      }
+    } catch (error) {
+      Alert.alert(t.restoreFailed || 'Restore Failed', error.message);
+    }
+  };
 
   // Handle Android back button
   useEffect(() => {
