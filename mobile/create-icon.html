@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>App Icon Generator</title>
+</head>
+<body>
+    <canvas id="canvas" width="1024" height="1024" style="border: 1px solid #000;"></canvas>
+    <br><br>
+    <button onclick="downloadIcon()">Download Icon as PNG</button>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Draw background gradient
+        const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+        gradient.addColorStop(0, '#1976D2');
+        gradient.addColorStop(0.5, '#2196F3');
+        gradient.addColorStop(1, '#42A5F5');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1024, 1024);
+
+        // Draw main shield
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(512, 150);
+        ctx.lineTo(750, 250);
+        ctx.lineTo(750, 450);
+        ctx.quadraticCurveTo(750, 650, 512, 850);
+        ctx.quadraticCurveTo(274, 650, 274, 450);
+        ctx.lineTo(274, 250);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw inner shield
+        ctx.fillStyle = '#FFA000';
+        ctx.beginPath();
+        ctx.moveTo(512, 200);
+        ctx.lineTo(700, 280);
+        ctx.lineTo(700, 450);
+        ctx.quadraticCurveTo(700, 620, 512, 780);
+        ctx.quadraticCurveTo(324, 620, 324, 450);
+        ctx.lineTo(324, 280);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw lock body
+        ctx.fillStyle = '#37474F';
+        ctx.fillRect(412, 450, 200, 180);
+
+        // Draw lock shackle
+        ctx.strokeStyle = '#37474F';
+        ctx.lineWidth = 20;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(512, 380, 62, Math.PI, 0, false);
+        ctx.stroke();
+
+        // Draw keyhole
+        ctx.fillStyle = '#1976D2';
+        ctx.beginPath();
+        ctx.arc(512, 520, 25, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillRect(502, 545, 20, 40);
+
+        // Add some sparkle effects
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        // Simple star shapes
+        const stars = [
+            {x: 200, y: 300, size: 15},
+            {x: 800, y: 400, size: 10},
+            {x: 150, y: 600, size: 12}
+        ];
+
+        stars.forEach(star => {
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, 2 * Math.PI);
+            ctx.fill();
+        });
+
+        function downloadIcon() {
+            const link = document.createElement('a');
+            link.download = 'icon.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+</body>
+</html>

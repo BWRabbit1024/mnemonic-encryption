@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"D:\\00_Program\\Android\\SDK_Components_Setup\\platform-tools\\adb.exe\" -s AF2SVB3828001005 uninstall com.securemnemonic.encrypt)",
+      "Bash(\"D:\\00_Program\\Android\\SDK_Components_Setup\\platform-tools\\adb.exe\" -s AF2SVB3828001005 shell am start -n com.securemnemonic.encrypt/.MainActivity)",
+      "Bash(\"D:\\00_Program\\Android\\SDK_Components_Setup\\platform-tools\\adb.exe\" -s AF2SVB3828001005 reverse tcp:8081 tcp:8081)",
+      "Read(//d/02_GitHub/Python-Project/**)",
+      "Bash(npm install:*)",
+      "Bash(./gradlew:*)",
+      "Bash(tree:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Read(//d/00_Program/Android/**)",
+      "Bash(\"D:\\00_Program\\Android\\Android Studio\\jbr\\bin\\java.exe\":*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

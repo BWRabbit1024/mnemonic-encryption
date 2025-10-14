@@ -1,0 +1,2 @@
+1. Go through this file D:\02_GitHub\Python-Project\app-development-checklist.md
+2. The Android studio and SDK folder is D:\00_Program\Android

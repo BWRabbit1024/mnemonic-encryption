@@ -1,0 +1,33 @@
+To create your custom app icon:
+
+1. Open the file: create-icon.html in a web browser
+2. It will show a beautiful security-themed icon with:
+   - Blue gradient background
+   - Golden shield shape
+   - Dark lock with keyhole
+   - Sparkle effects for premium look
+3. Click "Download Icon as PNG" to get icon.png
+4. Save it as: assets/icon.png
+5. Create a similar splash screen as: assets/splash.png
+
+OR
+
+Use an online icon generator:
+1. Go to: https://www.canva.com/create/app-icons/
+2. Search for "security" or "lock" templates
+3. Customize with blue/gold colors
+4. Download as 1024x1024 PNG
+5. Save as assets/icon.png
+
+Your icon design concept:
+🔵 Blue circular background (#2196F3)
+🛡️ Golden shield in center (#FFD700)
+🔒 Dark lock with keyhole (#37474F)
+✨ Subtle sparkle effects
+🔐 Professional security theme
+
+This will give you a professional app icon that represents:
+- Security (shield + lock)
+- Encryption (keyhole)
+- Premium feel (gold + blue)
+- Modern design (gradients + effects)

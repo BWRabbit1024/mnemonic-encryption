@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Read(//d/02_GitHub/Python-Project/**)",
+      "Bash(rm:*)",
+      "Bash(git reset:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(cat:*)",
+      "Bash(git checkout:*)",
+      "Bash(sed:*)",
+      "Bash(python:*)",
+      "Bash(npm install)",
+      "Bash(JAVA_HOME=\"/d/00_Program/Android/Android Studio/jbr\" ANDROID_HOME=\"/d/00_Program/Android/SDK_Components_Setup\" PATH=\"$PATH:/d/00_Program/Android/SDK_Components_Setup/platform-tools\" NODE_ENV=production ./gradlew clean assembleRelease)",
+      "Bash(npx expo prebuild:*)",
+      "Bash(JAVA_HOME=\"/d/00_Program/Android/Android Studio/jbr\" ANDROID_HOME=\"/d/00_Program/Android/SDK_Components_Setup\" PATH=\"$PATH:/d/00_Program/Android/SDK_Components_Setup/platform-tools\" NODE_ENV=production ./gradlew assembleRelease)",
+      "Bash(JAVA_HOME=\"/d/00_Program/Android/Android Studio/jbr\" ANDROID_HOME=\"/d/00_Program/Android/SDK_Components_Setup\" PATH=\"$PATH:/d/00_Program/Android/SDK_Components_Setup/platform-tools\" NODE_ENV=production ./gradlew assembleRelease --no-daemon)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

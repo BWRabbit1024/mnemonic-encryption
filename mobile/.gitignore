@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Native builds
+android/build/
+android/app/build/
+android/.cxx/
+android/app/debug/
+android/app/release/
+ios/build/
+*.ipa
+
+# APK/AAB files
+*.apk
+*.aab
+
+# Keystores
+*.jks
+*.keystore
+!android/app/debug.keystore
+
+# Certificates
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Metro
+.metro-health-check*
+
+# Misc
+*.tmp
+*~
