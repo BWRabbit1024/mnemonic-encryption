@@ -33,7 +33,9 @@ import { SecureMnemonicEncryption, PasswordStrengthChecker } from './crypto/Secu
 import MnemonicScanModal from './components/MnemonicScanModal';
 import { validateMnemonicWords } from './utils/bip39';
 import Constants from 'expo-constants';
-import Purchases from 'react-native-purchases';
+// Temporarily disabled - RevenueCat has package issues with Expo
+// Will implement premium without RevenueCat for now
+// import Purchases from 'react-native-purchases';
 
 // Translation object
 const translations = {
@@ -89,11 +91,12 @@ const translations = {
     premiumDescription: 'Unlock convenience features',
     qrCodeGeneration: 'QR Code Generation',
     qrCodeScanning: 'QR Code Scanning',
+    mnemonicRecognition: 'Mnemonic Recognition',
     quickDeviceTransfer: 'Quick Device Transfer',
     oneTimePurchase: 'One-time purchase • Lifetime access',
     restorePurchases: 'Restore Purchases',
     premiumFeature: 'Premium Feature',
-    premiumPromptMessage: 'QR Code features are available in Premium.\n\nPremium includes:\n• QR Code Generation\n• QR Code Scanning\n• Quick device transfers\n\nOne-time payment: $4.99',
+    premiumPromptMessage: 'Premium features provide convenience for quick transfers.\n\nPremium includes:\n• QR Code Generation\n• QR Code Scanning\n• Mnemonic Recognition (OCR)\n• Quick device transfers\n\nOne-time payment: $4.99',
     maybeLater: 'Maybe Later',
     learnMore: 'Learn More',
     upgradeNow: 'Upgrade Now',
@@ -108,7 +111,7 @@ const translations = {
     // Encrypt screen
     encryptTitle: 'Encrypt Mnemonic',
     mnemonicPhrase: 'Mnemonic Phrase:',
-    mnemonicPlaceholder: 'Enter your 12-24 word mnemonic phrase or tap \'Recognize\' button...',
+    mnemonicPlaceholder: 'Enter your 12-24 word mnemonic phrase (separate words with spaces) or tap \'Recognize\' button...',
     scan: 'Recognize',
     enterPassword: 'Enter a strong password',
     confirmPassword: 'Confirm Password:',
@@ -120,6 +123,12 @@ const translations = {
     copy: 'Copy',
     showQR: 'Show QR',
     clearAll: 'Clear All',
+    // Mnemonic validation
+    validMnemonic: 'Valid mnemonic',
+    invalidMnemonic: 'Invalid mnemonic',
+    validWords: 'valid words',
+    mnemonicRecognized: 'Mnemonic Recognized',
+    mnemonicRecognizedDesc: 'Mnemonic has been added to the input field',
     // Decrypt screen
     decryptTitle: 'Decrypt Mnemonic',
     encryptedTextLabel: 'Encrypted Text:',
@@ -368,11 +377,12 @@ const translations = {
     premiumDescription: '解锁便捷功能',
     qrCodeGeneration: '二维码生成',
     qrCodeScanning: '二维码扫描',
+    mnemonicRecognition: '助记词识别',
     quickDeviceTransfer: '快速设备传输',
     oneTimePurchase: '一次性购买 • 终身访问',
     restorePurchases: '恢复购买',
     premiumFeature: '高级功能',
-    premiumPromptMessage: '二维码功能为高级版功能。\n\n高级版包括：\n• 二维码生成\n• 二维码扫描\n• 快速设备传输\n\n一次性付款：$4.99',
+    premiumPromptMessage: '高级功能提供快速传输的便利性。\n\n高级版包括：\n• 二维码生成\n• 二维码扫描\n• 助记词识别（OCR）\n• 快速设备传输\n\n一次性付款：$4.99',
     maybeLater: '稍后再说',
     learnMore: '了解更多',
     upgradeNow: '立即升级',
@@ -387,7 +397,7 @@ const translations = {
     // Encrypt screen
     encryptTitle: '加密助记词',
     mnemonicPhrase: '助记词短语：',
-    mnemonicPlaceholder: '输入您的12-24个单词的助记词短语或点击"识别"按钮...',
+    mnemonicPlaceholder: '输入您的12-24个单词的助记词短语（用空格分隔单词）或点击"识别"按钮...',
     scan: '识别',
     enterPassword: '输入强密码',
     confirmPassword: '确认密码：',
@@ -399,6 +409,12 @@ const translations = {
     copy: '复制',
     showQR: '显示二维码',
     clearAll: '全部清除',
+    // Mnemonic validation
+    validMnemonic: '有效助记词',
+    invalidMnemonic: '无效助记词',
+    validWords: '有效单词',
+    mnemonicRecognized: '助记词已识别',
+    mnemonicRecognizedDesc: '助记词已添加到输入字段',
     // Decrypt screen
     decryptTitle: '解密助记词',
     encryptedTextLabel: '加密文本：',
@@ -646,6 +662,9 @@ export default function App() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
+  // State for mnemonic validation
+  const [mnemonicValidation, setMnemonicValidation] = useState(null);
+
   const encryption = new SecureMnemonicEncryption();
 
   // Get current translations
@@ -702,6 +721,8 @@ export default function App() {
         // Check if purchase was successful
         if (typeof customerInfo.entitlements.active['premium'] !== 'undefined') {
           setIsPremium(true);
+          // Save to SecureStore for offline persistence
+          await SecureStore.setItemAsync('premiumStatus', 'true');
           setShowPremiumModal(false);
           Alert.alert(t.success || 'Success', t.premiumUnlocked || 'Premium features unlocked!');
         }
@@ -718,11 +739,30 @@ export default function App() {
   // Restore purchases function
   const restorePurchases = async () => {
     try {
+      // For testing mode, just toggle premium status
+      const TESTING_MODE = true;
+      if (TESTING_MODE) {
+        // Toggle premium for testing
+        const newPremiumStatus = !isPremium;
+        setIsPremium(newPremiumStatus);
+        await SecureStore.setItemAsync('premiumStatus', newPremiumStatus ? 'true' : 'false');
+        Alert.alert(
+          t.success || 'Success',
+          newPremiumStatus
+            ? 'Premium activated for testing!'
+            : 'Premium deactivated for testing!'
+        );
+        return;
+      }
+
+      // Production mode - use RevenueCat
       const customerInfo = await Purchases.restorePurchases();
       const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
 
       if (hasAccess) {
         setIsPremium(true);
+        // Save to SecureStore for offline persistence
+        await SecureStore.setItemAsync('premiumStatus', 'true');
         Alert.alert(t.success || 'Success', t.premiumRestored || 'Premium access restored!');
       } else {
         Alert.alert(t.noPurchases || 'No Purchases', t.noPurchasesFound || 'No previous purchases found.');
@@ -778,9 +818,19 @@ export default function App() {
   useEffect(() => {
     const loadPreferences = async () => {
       try {
+        // Load device mode
         const savedDeviceMode = await SecureStore.getItemAsync('deviceMode');
         if (savedDeviceMode !== null) {
           setIsOnlineMode(savedDeviceMode === 'online');
+        }
+
+        // Load premium status from SecureStore
+        const savedPremiumStatus = await SecureStore.getItemAsync('premiumStatus');
+        if (savedPremiumStatus === 'true') {
+          setIsPremium(true);
+          console.log('[Premium] Loaded from SecureStore: Premium active');
+        } else {
+          console.log('[Premium] Loaded from SecureStore: Free user');
         }
       } catch (error) {
         console.error('Error loading preferences:', error);
@@ -991,6 +1041,7 @@ export default function App() {
     setPassword('');
     setConfirmPassword('');
     setEncryptedResult('');
+    setMnemonicValidation(null); // Clear validation
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
@@ -1004,8 +1055,21 @@ export default function App() {
   // Handle mnemonic recognized from scan
   const handleMnemonicRecognized = (mnemonicText) => {
     setMnemonic(mnemonicText);
+
+    // Validate the mnemonic words
+    const words = mnemonicText.trim().split(/\s+/).filter(word => word.length > 0);
+    const validation = validateMnemonicWords(words);
+
+    setMnemonicValidation({
+      isValid: validation.isValid,
+      totalWords: words.length,
+      validCount: validation.validWords.length,
+      invalidCount: validation.invalidWords.length,
+      invalidWords: validation.invalidWords
+    });
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert(t.mnemonicAddedToField, t.mnemonicAddedToField);
+    Alert.alert(t.mnemonicRecognized, t.mnemonicRecognizedDesc);
   };
 
   // Render home screen
@@ -1066,8 +1130,19 @@ export default function App() {
           <View style={styles.buttonRow}>
             <TouchableOpacity
               style={[styles.menuButton, styles.qrButton]}
-              onPress={() => setCurrentScreen('qrcode')}
+              onPress={() => {
+                if (isPremium) {
+                  setCurrentScreen('qrcode');
+                } else {
+                  setShowPremiumModal(true);
+                }
+              }}
             >
+              {!isPremium && (
+                <View style={styles.proBadge}>
+                  <Text style={styles.proBadgeText}>PRO</Text>
+                </View>
+              )}
               <Ionicons name="qr-code" size={36} color="white" />
               <Text style={styles.buttonText}>{t.qrCode}</Text>
               <Text style={styles.buttonSubtext}>{t.qrCodeSubtext}</Text>
@@ -1094,7 +1169,7 @@ export default function App() {
 
   // Render encrypt screen
   const renderEncryptScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1102,13 +1177,25 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.encryptTitle}</Text>
       </View>
 
-      <View style={styles.form}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         <View style={styles.inputHeader}>
           <Text style={styles.label}>{t.mnemonicPhrase}</Text>
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={() => setShowMnemonicScanner(true)}
+            onPress={() => {
+              if (isPremium) {
+                setShowMnemonicScanner(true);
+              } else {
+                setShowPremiumModal(true);
+              }
+            }}
           >
+            {!isPremium && (
+              <View style={styles.smallProBadge}>
+                <Text style={styles.smallProBadgeText}>PRO</Text>
+              </View>
+            )}
             <Ionicons name="scan" size={20} color="white" />
             <Text style={styles.scanButtonText}>{t.scan}</Text>
           </TouchableOpacity>
@@ -1118,7 +1205,24 @@ export default function App() {
           placeholder={t.mnemonicPlaceholder}
           placeholderTextColor="#666666"
           value={mnemonic}
-          onChangeText={setMnemonic}
+          onChangeText={(text) => {
+            setMnemonic(text);
+
+            // Auto-validate as user types
+            const words = text.trim().split(/\s+/).filter(word => word.length > 0);
+            if (words.length > 0) {
+              const validation = validateMnemonicWords(words);
+              setMnemonicValidation({
+                isValid: validation.isValid,
+                totalWords: words.length,
+                validCount: validation.validWords.length,
+                invalidCount: validation.invalidWords.length,
+                invalidWords: validation.invalidWords
+              });
+            } else {
+              setMnemonicValidation(null);
+            }
+          }}
           multiline={true}
           numberOfLines={3}
           autoCapitalize="none"
@@ -1126,6 +1230,23 @@ export default function App() {
           keyboardType="default"
           underlineColorAndroid="transparent"
         />
+
+        {/* Mnemonic Validation Status Bar */}
+        {mnemonicValidation && (
+          <View style={[
+            styles.validationBar,
+            mnemonicValidation.isValid ? styles.validationBarValid : styles.validationBarInvalid
+          ]}>
+            <Ionicons
+              name={mnemonicValidation.isValid ? "checkmark-circle" : "alert-circle"}
+              size={20}
+              color={mnemonicValidation.isValid ? "#4CAF50" : "#F44336"}
+            />
+            <Text style={styles.validationText}>
+              {mnemonicValidation.isValid ? t.validMnemonic : t.invalidMnemonic} {mnemonicValidation.validCount}/{mnemonicValidation.totalWords} {t.validWords}
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.label}>{t.password}:</Text>
         <View style={styles.passwordInputContainer}>
@@ -1213,21 +1334,33 @@ export default function App() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.showQRButton}
-                onPress={() => setShowQRModal(true)}
+                onPress={() => {
+                  if (isPremium) {
+                    setShowQRModal(true);
+                  } else {
+                    setShowPremiumModal(true);
+                  }
+                }}
               >
+                {!isPremium && (
+                  <View style={styles.smallProBadge}>
+                    <Text style={styles.smallProBadgeText}>PRO</Text>
+                  </View>
+                )}
                 <Ionicons name="qr-code" size={20} color="white" />
                 <Text style={styles.showQRButtonText}>{t.showQR}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : null}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   // Render decrypt screen
   const renderDecryptScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1235,13 +1368,25 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.decryptTitle}</Text>
       </View>
 
-      <View style={styles.form}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         <View style={styles.inputHeader}>
           <Text style={styles.label}>{t.encryptedTextLabel}</Text>
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={requestCameraPermission}
+            onPress={() => {
+              if (isPremium) {
+                requestCameraPermission();
+              } else {
+                setShowPremiumModal(true);
+              }
+            }}
           >
+            {!isPremium && (
+              <View style={styles.smallProBadge}>
+                <Text style={styles.smallProBadgeText}>PRO</Text>
+              </View>
+            )}
             <Ionicons name="qr-code-outline" size={20} color="white" />
             <Text style={styles.scanButtonText}>{t.scanQR}</Text>
           </TouchableOpacity>
@@ -1315,6 +1460,28 @@ export default function App() {
             {/* Numbered and validated mnemonic display */}
             <View style={styles.mnemonicValidationContainer}>
               <Text style={styles.mnemonicValidationTitle}>{t.numberedPhrase}</Text>
+
+              {/* Overall Validation Status Bar */}
+              {(() => {
+                const words = decryptedResult.trim().split(/\s+/).filter(word => word.length > 0);
+                const validation = validateMnemonicWords(words);
+                return (
+                  <View style={[
+                    styles.validationBar,
+                    validation.isValid ? styles.validationBarValid : styles.validationBarInvalid
+                  ]}>
+                    <Ionicons
+                      name={validation.isValid ? "checkmark-circle" : "alert-circle"}
+                      size={20}
+                      color={validation.isValid ? "#4CAF50" : "#F44336"}
+                    />
+                    <Text style={styles.validationText}>
+                      {validation.isValid ? t.validMnemonic : t.invalidMnemonic} {validation.validWords.length}/{words.length} {t.validWords}
+                    </Text>
+                  </View>
+                );
+              })()}
+
               <ScrollView style={styles.mnemonicValidationScroll} nestedScrollEnabled={true}>
                 {decryptedResult.trim().split(/\s+/).map((word, index) => {
                   const validation = validateMnemonicWords([word]);
@@ -1356,13 +1523,14 @@ export default function App() {
             </TouchableOpacity>
           </View>
         ) : null}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   // Render password strength screen
   const renderStrengthScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1370,7 +1538,8 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.strengthTitle}</Text>
       </View>
 
-      <View style={styles.form}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         <Text style={styles.label}>{t.testPassword}</Text>
         <View style={styles.passwordInputContainer}>
           <TextInput
@@ -1441,13 +1610,14 @@ export default function App() {
             )}
           </View>
         ) : null}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   // Render security information screen
   const renderSecurityScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1455,7 +1625,8 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.securityTitle}</Text>
       </View>
 
-      <View style={styles.securityContent}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.securityContent}>
         <View style={styles.backupRecommendation}>
           <View style={styles.backupHeader}>
             <Ionicons name="save" size={24} color="#2196F3" />
@@ -1582,14 +1753,15 @@ export default function App() {
           </View>
         </View>
 
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   // Render settings screen
   // Render QR Code screen
   const renderQRCodeScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1597,7 +1769,8 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.qrCodeTitle}</Text>
       </View>
 
-      <View style={styles.form}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         {/* Create QR Code Section */}
         <View style={styles.securitySection}>
           <View style={styles.sectionHeader}>
@@ -1713,8 +1886,9 @@ export default function App() {
             </>
           )}
         </View>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   const renderQRScannerModal = () => {
@@ -1765,7 +1939,7 @@ export default function App() {
   };
 
   const renderSettingsScreen = () => (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1773,7 +1947,8 @@ export default function App() {
         <Text style={styles.screenTitle}>{t.settingsTitle}</Text>
       </View>
 
-      <View style={styles.form}>
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         {/* Device Mode Section */}
         <View style={styles.settingsSection}>
           <View style={styles.sectionHeader}>
@@ -1876,8 +2051,70 @@ export default function App() {
             </View>
           </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+
+        {/* Premium Section */}
+        <View style={styles.settingsSection}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="star" size={24} color="#FFD700" />
+            <Text style={styles.sectionTitle}>{t.premium}</Text>
+          </View>
+          {isPremium ? (
+            <View style={styles.premiumActiveContainer}>
+              <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
+              <Text style={styles.premiumActiveText}>{t.premiumActive}</Text>
+              <Text style={styles.premiumActiveSubtext}>{t.premiumDescription}</Text>
+
+              <TouchableOpacity
+                style={styles.restoreButton}
+                onPress={restorePurchases}
+              >
+                <Ionicons name="refresh" size={18} color="#9C27B0" />
+                <Text style={styles.restoreButtonText}>{t.restorePurchases}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.settingsLabel}>{t.premiumDescription}</Text>
+              <View style={styles.premiumFeaturesList}>
+                <View style={styles.premiumFeatureItem}>
+                  <Ionicons name="qr-code" size={20} color="#9C27B0" />
+                  <Text style={styles.premiumFeatureText}>{t.qrCodeGeneration}</Text>
+                </View>
+                <View style={styles.premiumFeatureItem}>
+                  <Ionicons name="scan" size={20} color="#9C27B0" />
+                  <Text style={styles.premiumFeatureText}>{t.qrCodeScanning}</Text>
+                </View>
+                <View style={styles.premiumFeatureItem}>
+                  <Ionicons name="camera" size={20} color="#9C27B0" />
+                  <Text style={styles.premiumFeatureText}>{t.mnemonicRecognition}</Text>
+                </View>
+                <View style={styles.premiumFeatureItem}>
+                  <Ionicons name="phone-portrait" size={20} color="#9C27B0" />
+                  <Text style={styles.premiumFeatureText}>{t.quickDeviceTransfer}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.upgradeButton}
+                onPress={() => setShowPremiumModal(true)}
+              >
+                <Ionicons name="star" size={20} color="white" />
+                <Text style={styles.upgradeButtonText}>{t.upgradeToPremium}</Text>
+              </TouchableOpacity>
+              <Text style={styles.premiumPriceText}>{t.oneTimePurchase}</Text>
+
+              <TouchableOpacity
+                style={styles.restoreButton}
+                onPress={restorePurchases}
+              >
+                <Ionicons name="refresh" size={18} color="#9C27B0" />
+                <Text style={styles.restoreButtonText}>{t.restorePurchases}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 
   // Main render
@@ -1988,6 +2225,60 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* Premium Upgrade Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showPremiumModal}
+        onRequestClose={() => setShowPremiumModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.premiumModalContent}>
+            <View style={styles.premiumModalHeader}>
+              <Ionicons name="star" size={48} color="#FFD700" />
+              <Text style={styles.premiumModalTitle}>{t.premiumFeature}</Text>
+            </View>
+
+            <Text style={styles.premiumModalMessage}>
+              {t.premiumPromptMessage}
+            </Text>
+
+            <View style={styles.premiumModalButtons}>
+              <TouchableOpacity
+                style={[styles.premiumModalButton, styles.premiumModalButtonSecondary]}
+                onPress={() => setShowPremiumModal(false)}
+              >
+                <Text style={styles.premiumModalButtonSecondaryText}>{t.maybeLater}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.premiumModalButton, styles.premiumModalButtonPrimary]}
+                onPress={() => {
+                  setShowPremiumModal(false);
+                  // For now, just show an alert
+                  // In production, this would call: purchasePremium();
+                  Alert.alert(
+                    t.premium,
+                    'Premium purchase will be integrated with App Store/Play Store in-app purchases. For testing, you can toggle isPremium in the code.',
+                    [{ text: 'OK' }]
+                  );
+                }}
+                disabled={isPurchasing}
+              >
+                {isPurchasing ? (
+                  <Text style={styles.premiumModalButtonPrimaryText}>{t.purchasing}</Text>
+                ) : (
+                  <>
+                    <Ionicons name="star" size={20} color="white" />
+                    <Text style={styles.premiumModalButtonPrimaryText}>{t.upgradeNow}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Mnemonic Scanner Modal */}
       <MnemonicScanModal
         visible={showMnemonicScanner}
@@ -2012,6 +2303,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollContainer: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 20,
@@ -2030,7 +2324,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 15,
     backgroundColor: 'white',
-    marginBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -2096,6 +2389,49 @@ const styles = StyleSheet.create({
   },
   qrButton: {
     backgroundColor: '#9C27B0',
+  },
+  proBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 10,
+  },
+  proBadgeText: {
+    color: '#000',
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  // Small PRO badge for smaller buttons
+  smallProBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 4,
+    zIndex: 10,
+  },
+  smallProBadgeText: {
+    color: '#000',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
   },
   settingsButton: {
     backgroundColor: '#757575',
@@ -2168,6 +2504,32 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  // Mnemonic validation bar styles
+  validationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginTop: -12,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+  },
+  validationBarValid: {
+    backgroundColor: '#E8F5E9', // Light green background
+    borderLeftColor: '#4CAF50', // Green left border
+  },
+  validationBarInvalid: {
+    backgroundColor: '#FFEBEE', // Light red background
+    borderLeftColor: '#F44336', // Red left border
+  },
+  validationText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+    flex: 1,
   },
   actionButton: {
     backgroundColor: '#4CAF50',
@@ -2320,6 +2682,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flex: 1,
     marginLeft: 10,
+    position: 'relative',
   },
   showQRButtonText: {
     color: 'white',
@@ -2383,6 +2746,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  // Premium modal styles
+  premiumModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    width: '85%',
+    maxWidth: 400,
+  },
+  premiumModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  premiumModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 12,
+  },
+  premiumModalMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  premiumModalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  premiumModalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumModalButtonPrimary: {
+    backgroundColor: '#9C27B0',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  premiumModalButtonPrimaryText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  premiumModalButtonSecondary: {
+    backgroundColor: '#f0f0f0',
+  },
+  premiumModalButtonSecondaryText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   inputHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2396,6 +2826,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    position: 'relative',
   },
   scanButtonText: {
     color: 'white',
@@ -2782,7 +3213,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#555',
-    marginBottom: 10,
+    marginBottom: 20,
   },
   mnemonicValidationScroll: {
     maxHeight: 200,
@@ -2908,6 +3339,80 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 2,
+  },
+  // Premium section styles
+  premiumActiveContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    width: '100%',
+  },
+  premiumActiveText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginTop: 12,
+  },
+  premiumActiveSubtext: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  premiumFeaturesList: {
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  premiumFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  premiumFeatureText: {
+    fontSize: 15,
+    color: '#333',
+    marginLeft: 12,
+  },
+  upgradeButton: {
+    backgroundColor: '#9C27B0',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  upgradeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  premiumPriceText: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  restoreButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#9C27B0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  restoreButtonText: {
+    color: '#9C27B0',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   // Simplified security section styles
   securityOverview: {
