@@ -7,7 +7,7 @@
 // IMPORTANT: Must be imported FIRST to enable crypto functionality
 import 'react-native-get-random-values';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -20,7 +20,8 @@ import {
   StatusBar,
   Modal,
   Platform,
-  BackHandler
+  BackHandler,
+  AppState
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -670,6 +671,65 @@ export default function App() {
   // Get current translations
   const t = translations[language];
 
+  // Auto-clear timer ref (5 minutes = 300000ms)
+  const autoClearTimerRef = useRef(null);
+  const AUTO_CLEAR_DELAY = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+  // Function to clear all sensitive data
+  const clearAllSensitiveData = () => {
+    console.log('[Security] Auto-clearing all sensitive data after 5 minutes of inactivity');
+
+    // Clear encryption data
+    setMnemonic('');
+    setPassword('');
+    setConfirmPassword('');
+    setEncryptedResult('');
+
+    // Clear decryption data
+    setEncryptedInput('');
+    setDecryptPassword('');
+    setDecryptedResult('');
+
+    // Clear password test data
+    setTestPassword('');
+    setPasswordStrength(null);
+
+    // Clear QR data
+    setQrText('');
+    setGeneratedQRData('');
+    setScannedQRData('');
+
+    // Clear mnemonic validation
+    setMnemonicValidation(null);
+
+    // Return to home screen for security
+    setCurrentScreen('home');
+  };
+
+  // Start auto-clear timer
+  const startAutoClearTimer = () => {
+    // Clear any existing timer
+    if (autoClearTimerRef.current) {
+      clearTimeout(autoClearTimerRef.current);
+    }
+
+    // Start new timer
+    autoClearTimerRef.current = setTimeout(() => {
+      clearAllSensitiveData();
+    }, AUTO_CLEAR_DELAY);
+
+    console.log('[Security] Auto-clear timer started (5 minutes)');
+  };
+
+  // Cancel auto-clear timer
+  const cancelAutoClearTimer = () => {
+    if (autoClearTimerRef.current) {
+      clearTimeout(autoClearTimerRef.current);
+      autoClearTimerRef.current = null;
+      console.log('[Security] Auto-clear timer cancelled');
+    }
+  };
+
   // Initialize RevenueCat and check premium status
   useEffect(() => {
     const initializePurchases = async () => {
@@ -705,6 +765,24 @@ export default function App() {
     };
 
     initializePurchases();
+  }, []);
+
+  // Auto-clear sensitive data when app goes to background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // App went to background - start auto-clear timer
+        startAutoClearTimer();
+      } else if (nextAppState === 'active') {
+        // App came back to foreground - cancel timer
+        cancelAutoClearTimer();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      cancelAutoClearTimer(); // Clean up timer on unmount
+    };
   }, []);
 
   // Purchase premium function

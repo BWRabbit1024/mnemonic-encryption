@@ -55,6 +55,13 @@ yarn-error.log*
 Thumbs.db
 *.tmp
 
+# Google Play / App Store
+google-play-service-account.json
+*.jks
+*.keystore
+!debug.keystore
+my-upload-key.keystore
+
 # Misc
 =*
 nul

@@ -1,6 +1,13 @@
 # 🔐 Secure Mnemonic Encryption Suite
 
-A professional-grade, cross-platform tool for securely encrypting cryptocurrency mnemonic phrases using modern cryptographic standards. Available as both a mobile app and desktop application with full compatibility between platforms.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Desktop-green.svg)]()
+[![Security](https://img.shields.io/badge/Security-AES--256--CBC-red.svg)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+A professional-grade, **open source** cross-platform tool for securely encrypting cryptocurrency mnemonic phrases using modern cryptographic standards. Available as both a mobile app and desktop application with full compatibility between platforms.
+
+> **🔓 Open Source for Trust**: This is a security tool handling cryptocurrency assets. The source code is open for community audit and verification.
 
 ## 📱 Platforms Supported
 
@@ -210,11 +217,21 @@ pyinstaller --onefile src/cli/main.py
 
 ## 🤝 Contributing
 
-This project prioritizes security above all else. Any contributions must:
-- Maintain or improve current security standards
-- Include comprehensive testing
-- Follow cryptographic best practices
-- Maintain cross-platform compatibility
+We welcome contributions! This project prioritizes security above all else.
+
+**Before contributing, please read:**
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+
+Any contributions must:
+- ✅ Maintain or improve current security standards
+- ✅ Include comprehensive testing
+- ✅ Follow cryptographic best practices
+- ✅ Maintain cross-platform compatibility
+- ✅ Preserve encryption format backward compatibility
+
+**Found a security issue?** Please report it privately - see [SECURITY.md](SECURITY.md).
 
 ## 📄 License
 
