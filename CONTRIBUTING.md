@@ -18,11 +18,22 @@ This is a **defensive security tool** for protecting cryptocurrency assets. All 
 
 **DO NOT** open public issues for security vulnerabilities. Instead:
 
-1. **Create a private security advisory** on GitHub (preferred)
-   - Go to Security tab → Advisories → New draft security advisory
-2. **Or email directly**: security@example.com (update with your email)
-3. Include: Detailed description, steps to reproduce, potential impact
-4. Allow 90 days for a fix before public disclosure
+1. **Use GitHub Security Advisories** (preferred method)
+   - Go to the Security tab → Advisories → "Report a vulnerability"
+   - This allows private discussion and coordinated disclosure
+   - We'll work with you to verify, fix, and properly credit your discovery
+
+2. **What to include in your report:**
+   - Detailed description of the vulnerability
+   - Steps to reproduce the issue
+   - Potential security impact
+   - Any suggested fixes (optional)
+
+3. **Responsible disclosure timeline:**
+   - We aim to respond within 48 hours
+   - We'll work on a fix and keep you updated
+   - Allow 90 days for a patch before public disclosure
+   - You'll receive credit in release notes (unless you prefer anonymity)
 
 ## 💻 Development Setup
 
