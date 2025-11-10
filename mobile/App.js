@@ -38,8 +38,8 @@ import AuthenticationScreen from './components/AuthenticationScreen';
 import { validateMnemonicWords } from './utils/bip39';
 import Constants from 'expo-constants';
 import NetInfo from '@react-native-community/netinfo';
-// RevenueCat for in-app purchases
-import Purchases from 'react-native-purchases';
+// React Native IAP for in-app purchases
+import * as RNIap from 'react-native-iap';
 
 // Translation object
 const translations = {
@@ -860,29 +860,26 @@ function AppContent() {
               return;
             }
 
-            // Configure RevenueCat (only runs if TESTING_MODE = false)
-            if (Platform.OS === 'android') {
-              await Purchases.configure({ apiKey: 'test_JLwsyzMkHfueunmPexecoOStrxX' });
-            } else if (Platform.OS === 'ios') {
-              await Purchases.configure({ apiKey: 'YOUR_IOS_API_KEY_HERE' });
-            }
+            // Initialize IAP connection (only runs if TESTING_MODE = false)
+            await RNIap.initConnection();
+            console.log('[Premium] IAP connection initialized');
 
-            // Sync with RevenueCat server (validates purchase online)
-            const customerInfo = await Purchases.getCustomerInfo();
-            const cloudPremium = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+            // Check for existing purchases to restore premium status
+            const purchases = await RNIap.getAvailablePurchases();
+            const hasPremium = purchases.some(p => p.productId === 'premium_unlock');
 
-            // Update local storage with cloud status
-            setIsPremium(cloudPremium);
-            await SecureStore.setItemAsync('premiumStatus', cloudPremium ? 'true' : 'false');
-            console.log('[Premium] Synced with RevenueCat:', cloudPremium);
+            // Update local storage with purchase status
+            setIsPremium(hasPremium);
+            await SecureStore.setItemAsync('premiumStatus', hasPremium ? 'true' : 'false');
+            console.log('[Premium] Purchase check complete:', hasPremium);
           } catch (syncError) {
-            // RevenueCat sync failed (network error, API error, etc.)
+            // IAP check failed (network error, API error, etc.)
             // Silently continue with local storage value - NO ERROR SHOWN TO USER
-            console.log('[Premium] RevenueCat sync failed:', syncError.message);
+            console.log('[Premium] IAP check failed:', syncError.message);
             // Premium status remains as loaded from SecureStore
           }
         } else {
-          console.log('[Premium] Device offline - skipping RevenueCat sync');
+          console.log('[Premium] Device offline - skipping IAP check');
         }
       } catch (error) {
         // Even SecureStore failed - default to free
@@ -1011,19 +1008,26 @@ function AppContent() {
     try {
       setIsPurchasing(true);
 
-      // Get available offerings
-      const offerings = await Purchases.getOfferings();
-      if (offerings.current !== null) {
-        const productPackage = offerings.current.availablePackages[0];
-        const { customerInfo } = await Purchases.purchasePackage(productPackage);
+      // Initialize IAP connection
+      await RNIap.initConnection();
 
-        // Check if purchase was successful
-        if (typeof customerInfo.entitlements.active['premium'] !== 'undefined') {
-          setIsPremium(true);
-          // Save to SecureStore for offline persistence
-          await SecureStore.setItemAsync('premiumStatus', 'true');
-          setShowPremiumModal(false);
-          Alert.alert(t.success || 'Success', t.premiumUnlocked || 'Premium features unlocked!');
+      // Get available products
+      const products = await RNIap.getProducts({ skus: ['premium_unlock'] });
+
+      if (products.length > 0) {
+        // Request purchase
+        const purchase = await RNIap.requestPurchase({ sku: 'premium_unlock' });
+
+        // Purchase successful
+        setIsPremium(true);
+        // Save to SecureStore for offline persistence
+        await SecureStore.setItemAsync('premiumStatus', 'true');
+        setShowPremiumModal(false);
+        Alert.alert(t.success || 'Success', t.premiumUnlocked || 'Premium features unlocked!');
+
+        // Acknowledge purchase (required for Android)
+        if (Platform.OS === 'android') {
+          await RNIap.acknowledgePurchaseAndroid({ token: purchase.purchaseToken });
         }
       }
     } catch (error) {
@@ -1047,11 +1051,14 @@ function AppContent() {
     }
 
     try {
-      // Use RevenueCat to restore purchases
-      const customerInfo = await Purchases.restorePurchases();
-      const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+      // Initialize IAP connection
+      await RNIap.initConnection();
 
-      if (hasAccess) {
+      // Get available purchases (previously purchased items)
+      const purchases = await RNIap.getAvailablePurchases();
+      const hasPremium = purchases.some(p => p.productId === 'premium_unlock');
+
+      if (hasPremium) {
         setIsPremium(true);
         // Save to SecureStore for offline persistence
         await SecureStore.setItemAsync('premiumStatus', 'true');
