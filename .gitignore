@@ -49,6 +49,10 @@ encrypted_storage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*_logs.txt
+logcat*.txt
+crash*.txt
+all_logs.txt
 
 # OS
 .DS_Store
@@ -57,10 +61,16 @@ Thumbs.db
 
 # Google Play / App Store
 google-play-service-account.json
+civil-lambda-476314-a6-f112653c04e8.json
+*service-account*.json
 *.jks
 *.keystore
 !debug.keystore
 my-upload-key.keystore
+keystore.properties
+*.apk
+*.aab
+apk_contents.txt
 
 # Misc
 =*

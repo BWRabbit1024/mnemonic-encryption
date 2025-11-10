@@ -51,7 +51,7 @@ npx expo run:android
 "D:\00_Program\Android\SDK_Components_Setup\platform-tools\adb.exe" -s AF2SVB3828001005 install path/to/app.apk
 
 # Uninstall app from device
-"D:\00_Program\Android\SDK_Components_Setup\platform-tools\adb.exe" -s AF2SVB3828001005 uninstall com.securemnemonic.encrypt
+"D:\00_Program\Android\SDK_Components_Setup\platform-tools\adb.exe" -s AF2SVB3828001005 uninstall com.rabbitappslab.mnemonicencrypt
 
 # Build APK for testing
 eas build --platform android --profile preview
@@ -193,8 +193,8 @@ Or vice versa. The encryption format is designed to be bidirectionally compatibl
 
 ## Package IDs & App Configuration
 
-- **Android Package**: `com.securemnemonic.encrypt`
-- **iOS Bundle ID**: `com.securemnemonic.encrypt`
+- **Android Package**: `com.rabbitappslab.mnemonicencrypt`
+- **iOS Bundle ID**: `com.rabbitappslab.mnemonicencrypt`
 - **Expo Project ID**: `dc138022-8e57-4f4a-b15b-a858eccef86a`
 - **Expo Owner**: `bwrabbit1024`
 

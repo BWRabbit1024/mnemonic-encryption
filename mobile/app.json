@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mnemonic Encryption",
     "slug": "secure-mnemonic-encrypt",
-    "version": "1.1.1",
+    "version": "1.2.4",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -15,11 +15,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.securemnemonic.encrypt"
+      "bundleIdentifier": "com.rabbitappslab.mnemonicencrypt"
     },
     "android": {
-      "package": "com.securemnemonic.encrypt",
-      "versionCode": 2,
+      "package": "com.rabbitappslab.mnemonicencrypt",
+      "versionCode": 7,
       "permissions": [],
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon_foreground.png",

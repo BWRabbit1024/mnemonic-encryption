@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-10-18
+
+### Added
+- ⏱️ **Auto-Lock Timer** - Configure how long the app stays unlocked when sent to background
+  - Options: Immediately, 30 seconds, 1 minute (default), 5 minutes
+  - Prevents unnecessary re-authentication for brief app switches
+  - Setting persists across app restarts
+- ➕ Cancel button to PIN verification screens during Change PIN and Disable App Lock operations
+- 📱 Improved PIN screen labels for better user guidance
+- 🌐 Complete Chinese translations for all App Lock and Auto-Lock Timer settings
+
+### Changed
+- 🎨 Enhanced color consistency in Device Mode settings (Internet Connected button now uses orange theme)
+- 🎨 Enhanced color consistency in App Lock settings (Enabled button now uses red theme)
+- 📝 Improved PIN screen labels: "Verify Current PIN", "Create New PIN", "Confirm New PIN"
+- 🔄 Auto-Lock Timer UI only appears when App Lock is enabled
+
+### Fixed
+- ✅ Change PIN flow now correctly shows "Create New PIN" screen after verifying old PIN
+- ✅ Fingerprint button no longer flashes during PIN change transition
+- ✅ Disable PIN dialog flow - PIN screen now closes before showing confirmation dialog
+- 🧹 Removed debug console.log statements (code cleanup)
+
 ## [1.1.0] - 2025-10-02
 
 ### Added

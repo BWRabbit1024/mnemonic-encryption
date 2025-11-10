@@ -1,4 +1,4 @@
-package com.securemnemonic.encrypt
+package com.rabbitappslab.mnemonicencrypt
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

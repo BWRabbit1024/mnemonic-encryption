@@ -21,8 +21,10 @@ import {
   Modal,
   Platform,
   BackHandler,
-  AppState
+  AppState,
+  Dimensions
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,11 +34,12 @@ import * as SecureStore from 'expo-secure-store';
 
 import { SecureMnemonicEncryption, PasswordStrengthChecker } from './crypto/SecureEncryption';
 import MnemonicScanModal from './components/MnemonicScanModal';
+import AuthenticationScreen from './components/AuthenticationScreen';
 import { validateMnemonicWords } from './utils/bip39';
 import Constants from 'expo-constants';
-// Temporarily disabled - RevenueCat has package issues with Expo
-// Will implement premium without RevenueCat for now
-// import Purchases from 'react-native-purchases';
+import NetInfo from '@react-native-community/netinfo';
+// RevenueCat for in-app purchases
+import Purchases from 'react-native-purchases';
 
 // Translation object
 const translations = {
@@ -219,6 +222,29 @@ const translations = {
     requestingCameraPermission: 'Requesting camera permission...',
     noAccessToCamera: 'No access to camera',
     grantPermission: 'Grant Permission',
+    // PIN Authentication
+    unlockMnemonicEncryption: 'Unlock Mnemonic Encryption',
+    usePin: 'Use PIN',
+    createNewPin: 'Create New PIN',
+    confirmNewPin: 'Confirm New PIN',
+    verifyCurrentPin: 'Verify Current PIN',
+    enterPin: 'Enter PIN',
+    enterSixDigitPin: 'Enter a 6-digit PIN to secure your app',
+    enterNewPinAgain: 'Enter your new PIN again to confirm',
+    enterCurrentPinToVerify: 'Enter your current PIN to verify',
+    enterPinToUnlock: 'Enter your PIN to unlock the app',
+    useFingerprint: 'Use Fingerprint',
+    pinsDoNotMatch: 'PINs do not match. Please try again.',
+    error: 'Error',
+    disableAppLock: 'Disable App Lock',
+    disableAppLockConfirm: 'Are you sure you want to disable PIN and fingerprint protection?',
+    disable: 'Disable',
+    success: 'Success',
+    appLockDisabled: 'App Lock has been disabled',
+    pinChanged: 'Your PIN has been changed',
+    appLockEnabled: 'App Lock has been enabled',
+    authenticationFailed: 'Authentication failed',
+    failedToSaveDeviceMode: 'Failed to save device mode preference',
     // Mnemonic scanner
     scanMnemonic: 'Recognize',
     cameraPermissionRequiredForScan: 'Camera permission is required to scan mnemonic phrases',
@@ -325,6 +351,21 @@ const translations = {
     crossPlatformDetail: 'Compatible with desktop Python version',
     verification: 'Verification:',
     selfTest: 'Automatic encryption/decryption self-test on every operation',
+    // Auto-Lock Timer
+    autoLockTimer: 'Auto-Lock Timer',
+    autoLockTimerDescription: 'Lock the app after being in the background for:',
+    immediately: 'Immediately',
+    thirtySeconds: '30 seconds',
+    oneMinuteDefault: '1 minute (default)',
+    fiveMinutes: '5 minutes',
+    // App Lock Settings
+    appLock: 'App Lock',
+    appLockDescription: 'Secure your app with a 6-digit PIN and fingerprint',
+    disabled: 'Disabled',
+    noPinProtection: 'No PIN or fingerprint protection',
+    enabled: 'Enabled',
+    pinProtection: 'PIN and fingerprint protection',
+    changePin: 'Change PIN',
   },
   zh: {
     appTitle: 'Mnemonic Encryption',
@@ -505,6 +546,29 @@ const translations = {
     requestingCameraPermission: '正在请求相机权限...',
     noAccessToCamera: '无法访问相机',
     grantPermission: '授予权限',
+    // PIN Authentication
+    unlockMnemonicEncryption: '解锁助记词加密',
+    usePin: '使用PIN码',
+    createNewPin: '创建新PIN码',
+    confirmNewPin: '确认新PIN码',
+    verifyCurrentPin: '验证当前PIN码',
+    enterPin: '输入PIN码',
+    enterSixDigitPin: '输入6位PIN码以保护您的应用',
+    enterNewPinAgain: '再次输入您的新PIN码以确认',
+    enterCurrentPinToVerify: '输入您的当前PIN码以验证',
+    enterPinToUnlock: '输入您的PIN码以解锁应用',
+    useFingerprint: '使用指纹',
+    pinsDoNotMatch: 'PIN码不匹配。请重试。',
+    error: '错误',
+    disableAppLock: '禁用应用锁',
+    disableAppLockConfirm: '确定要禁用PIN码和指纹保护吗？',
+    disable: '禁用',
+    success: '成功',
+    appLockDisabled: '应用锁已禁用',
+    pinChanged: '您的PIN码已更改',
+    appLockEnabled: '应用锁已启用',
+    authenticationFailed: '身份验证失败',
+    failedToSaveDeviceMode: '保存设备模式首选项失败',
     // Mnemonic scanner
     scanMnemonic: '识别',
     cameraPermissionRequiredForScan: '需要相机权限来扫描助记词短语',
@@ -611,12 +675,31 @@ const translations = {
     crossPlatformDetail: '与桌面Python版本兼容',
     verification: '验证：',
     selfTest: '每次操作自动加密/解密自检',
+    // Auto-Lock Timer
+    autoLockTimer: '自动锁定计时器',
+    autoLockTimerDescription: '应用在后台运行时自动锁定：',
+    immediately: '立即',
+    thirtySeconds: '30 秒',
+    oneMinuteDefault: '1 分钟（默认）',
+    fiveMinutes: '5 分钟',
+    // App Lock Settings
+    appLock: '应用锁',
+    appLockDescription: '使用6位PIN码和指纹保护您的应用',
+    disabled: '已禁用',
+    noPinProtection: '无PIN码或指纹保护',
+    enabled: '已启用',
+    pinProtection: 'PIN码和指纹保护',
+    changePin: '更改PIN码',
   }
 };
 
-export default function App() {
+function AppContent() {
+  // Get safe area insets from react-native-safe-area-context (truly adaptive)
+  const insets = useSafeAreaInsets();
+
   // State for current screen
-  const [currentScreen, setCurrentScreen] = useState('home'); // 'home', 'encrypt', 'decrypt', 'strength', 'security', 'qrcode', 'settings'
+  const [currentScreen, setCurrentScreen] = useState('home');
+  const [settingsDetailScreen, setSettingsDetailScreen] = useState(null); // null, 'deviceMode', 'appLock', 'language', 'premium' // 'home', 'encrypt', 'decrypt', 'strength', 'security', 'qrcode', 'settings'
 
   // State for language
   const [language, setLanguage] = useState('en'); // 'en' or 'zh'
@@ -663,8 +746,28 @@ export default function App() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
+  // State for network status
+  const [isOnlineStatus, setIsOnlineStatus] = useState(true);
+
   // State for mnemonic validation
   const [mnemonicValidation, setMnemonicValidation] = useState(null);
+
+  // State for App Lock (PIN/Fingerprint)
+  const [appLockEnabled, setAppLockEnabled] = useState(false);
+  const [storedPin, setStoredPin] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [authMode, setAuthMode] = useState('verify'); // 'setup' or 'verify'
+  const [pendingDisableAppLock, setPendingDisableAppLock] = useState(false);
+  const [pendingChangePin, setPendingChangePin] = useState(false);
+  const [autoLockTimeout, setAutoLockTimeout] = useState(60); // in seconds, default: 1 minute
+  const backgroundTimestampRef = useRef(null);
+
+  // Hidden debug toggle for premium (tap shield 8 times + version 6 times)
+  const [shieldTapCount, setShieldTapCount] = useState(0);
+  const [versionTapCount, setVersionTapCount] = useState(0);
+  const [debugSequenceActive, setDebugSequenceActive] = useState(false);
+  const debugTimerRef = useRef(null);
 
   const encryption = new SecureMnemonicEncryption();
 
@@ -734,37 +837,82 @@ export default function App() {
   useEffect(() => {
     const initializePurchases = async () => {
       try {
-        // For development/testing only - set to true to bypass premium checks
-        // In production, this will be false and check real purchases
-        const TESTING_MODE = true;  // Set to false for production
+        // OFFLINE-FIRST APPROACH: Always check local storage first
+        // This ensures premium features work offline for users who purchased
+        const savedPremiumStatus = await SecureStore.getItemAsync('premiumStatus');
+        const localPremium = savedPremiumStatus === 'true';
 
-        if (TESTING_MODE) {
-          // For testing: you can toggle isPremium state manually
-          console.log('[Premium] Running in test mode - isPremium:', isPremium);
-          return;
+        // Set initial state from offline storage (works immediately, even offline)
+        setIsPremium(localPremium);
+        console.log('[Premium] Loaded from local storage:', localPremium);
+
+        // Then try to sync with RevenueCat if online (silent background sync)
+        // Check network status first to avoid unnecessary RevenueCat errors
+        const netState = await NetInfo.fetch();
+
+        if (netState.isConnected) {
+          try {
+            // For development/testing only - set to true to bypass RevenueCat sync
+            const TESTING_MODE = true;  // Set to false when you have RevenueCat API keys
+
+            if (TESTING_MODE) {
+              console.log('[Premium] Test mode - skipping RevenueCat sync');
+              return;
+            }
+
+            // Configure RevenueCat (only runs if TESTING_MODE = false)
+            if (Platform.OS === 'android') {
+              await Purchases.configure({ apiKey: 'test_JLwsyzMkHfueunmPexecoOStrxX' });
+            } else if (Platform.OS === 'ios') {
+              await Purchases.configure({ apiKey: 'YOUR_IOS_API_KEY_HERE' });
+            }
+
+            // Sync with RevenueCat server (validates purchase online)
+            const customerInfo = await Purchases.getCustomerInfo();
+            const cloudPremium = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+
+            // Update local storage with cloud status
+            setIsPremium(cloudPremium);
+            await SecureStore.setItemAsync('premiumStatus', cloudPremium ? 'true' : 'false');
+            console.log('[Premium] Synced with RevenueCat:', cloudPremium);
+          } catch (syncError) {
+            // RevenueCat sync failed (network error, API error, etc.)
+            // Silently continue with local storage value - NO ERROR SHOWN TO USER
+            console.log('[Premium] RevenueCat sync failed:', syncError.message);
+            // Premium status remains as loaded from SecureStore
+          }
+        } else {
+          console.log('[Premium] Device offline - skipping RevenueCat sync');
         }
-
-        // Production code - configure RevenueCat
-        // Note: You'll need to add your RevenueCat API keys before production
-        if (Platform.OS === 'android') {
-          await Purchases.configure({ apiKey: 'YOUR_ANDROID_API_KEY_HERE' });
-        } else if (Platform.OS === 'ios') {
-          await Purchases.configure({ apiKey: 'YOUR_IOS_API_KEY_HERE' });
-        }
-
-        // Check current customer info
-        const customerInfo = await Purchases.getCustomerInfo();
-        const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
-        setIsPremium(hasAccess);
-        console.log('[Premium] Premium status:', hasAccess);
       } catch (error) {
-        console.error('[Premium] Failed to initialize:', error);
-        // Default to free if initialization fails
+        // Even SecureStore failed - default to free
+        console.error('[Premium] Failed to load premium status:', error);
         setIsPremium(false);
       }
     };
 
     initializePurchases();
+  }, []);
+
+  // Cleanup debug timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debugTimerRef.current) {
+        clearTimeout(debugTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Monitor network status
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnlineStatus(state.isConnected);
+      console.log('[Network] Connection status:', state.isConnected ? 'Online' : 'Offline');
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Auto-clear sensitive data when app goes to background
@@ -783,10 +931,83 @@ export default function App() {
       subscription.remove();
       cancelAutoClearTimer(); // Clean up timer on unmount
     };
+  }, [appLockEnabled, isAuthenticated]);
+
+  // Load authentication settings on app start
+  useEffect(() => {
+    const loadAuthSettings = async () => {
+      try {
+        const lockEnabled = await SecureStore.getItemAsync('appLockEnabled');
+        const pin = await SecureStore.getItemAsync('appPin');
+        const timeout = await SecureStore.getItemAsync('autoLockTimeout');
+
+        // Load auto-lock timeout (default: 60 seconds if not set)
+        if (timeout) {
+          setAutoLockTimeout(parseInt(timeout, 10));
+        }
+
+        if (lockEnabled === 'true' && pin) {
+          setAppLockEnabled(true);
+          setStoredPin(pin);
+          // Show auth screen on app start if lock is enabled
+          setAuthMode('verify');
+          setShowAuthScreen(true);
+        } else {
+          setIsAuthenticated(true); // No lock, so authenticated by default
+        }
+      } catch (error) {
+        console.error('Failed to load auth settings:', error);
+        setIsAuthenticated(true); // Fail open for safety
+      }
+    };
+
+    loadAuthSettings();
   }, []);
+
+  // AppState listener for auto-lock timer
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      // App going to background
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // Save current timestamp when app goes to background
+        backgroundTimestampRef.current = Date.now();
+      }
+
+      // App coming to foreground
+      if (nextAppState === 'active' && backgroundTimestampRef.current) {
+        const elapsedSeconds = (Date.now() - backgroundTimestampRef.current) / 1000;
+
+        // Only check if app lock is enabled and user was authenticated
+        if (appLockEnabled && isAuthenticated) {
+          // If elapsed time exceeds configured timeout, require re-authentication
+          if (elapsedSeconds > autoLockTimeout) {
+            setIsAuthenticated(false);
+            setAuthMode('verify');
+            setShowAuthScreen(true);
+          }
+        }
+
+        // Clear the background timestamp
+        backgroundTimestampRef.current = null;
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appLockEnabled, isAuthenticated, autoLockTimeout]);
 
   // Purchase premium function
   const purchasePremium = async () => {
+    // Check network status first
+    if (!isOnlineStatus) {
+      Alert.alert(
+        t.noConnection || 'No Connection',
+        'Internet connection required to purchase premium. Please connect and try again.'
+      );
+      return;
+    }
+
     try {
       setIsPurchasing(true);
 
@@ -816,24 +1037,17 @@ export default function App() {
 
   // Restore purchases function
   const restorePurchases = async () => {
-    try {
-      // For testing mode, just toggle premium status
-      const TESTING_MODE = true;
-      if (TESTING_MODE) {
-        // Toggle premium for testing
-        const newPremiumStatus = !isPremium;
-        setIsPremium(newPremiumStatus);
-        await SecureStore.setItemAsync('premiumStatus', newPremiumStatus ? 'true' : 'false');
-        Alert.alert(
-          t.success || 'Success',
-          newPremiumStatus
-            ? 'Premium activated for testing!'
-            : 'Premium deactivated for testing!'
-        );
-        return;
-      }
+    // Check network status first
+    if (!isOnlineStatus) {
+      Alert.alert(
+        t.noConnection || 'No Connection',
+        'Internet connection required to restore purchases. Please connect and try again.'
+      );
+      return;
+    }
 
-      // Production mode - use RevenueCat
+    try {
+      // Use RevenueCat to restore purchases
       const customerInfo = await Purchases.restorePurchases();
       const hasAccess = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
 
@@ -848,6 +1062,145 @@ export default function App() {
     } catch (error) {
       Alert.alert(t.restoreFailed || 'Restore Failed', error.message);
     }
+  };
+
+  // Hidden debug toggle handlers (tap shield 8 times + version 6 times)
+  const handleShieldTap = () => {
+    // Reset timer on any tap
+    if (debugTimerRef.current) {
+      clearTimeout(debugTimerRef.current);
+    }
+
+    const newCount = shieldTapCount + 1;
+    setShieldTapCount(newCount);
+
+    if (newCount === 8) {
+      // Shield sequence complete, activate version tap listening
+      setDebugSequenceActive(true);
+      setShieldTapCount(0); // Reset shield counter
+    }
+
+    // Reset everything after 5 seconds of inactivity
+    debugTimerRef.current = setTimeout(() => {
+      setShieldTapCount(0);
+      setVersionTapCount(0);
+      setDebugSequenceActive(false);
+    }, 5000);
+  };
+
+  const handleVersionTap = async () => {
+    if (!debugSequenceActive) return; // Only count if shield sequence was completed
+
+    if (debugTimerRef.current) {
+      clearTimeout(debugTimerRef.current);
+    }
+
+    const newCount = versionTapCount + 1;
+    setVersionTapCount(newCount);
+
+    if (newCount === 6) {
+      // Full sequence complete! Toggle premium silently
+      const newPremiumStatus = !isPremium;
+      setIsPremium(newPremiumStatus);
+      await SecureStore.setItemAsync('premiumStatus', newPremiumStatus ? 'true' : 'false');
+
+      // Reset all counters
+      setShieldTapCount(0);
+      setVersionTapCount(0);
+      setDebugSequenceActive(false);
+      if (debugTimerRef.current) {
+        clearTimeout(debugTimerRef.current);
+      }
+      return;
+    }
+
+    // Reset after 5 seconds of inactivity
+    debugTimerRef.current = setTimeout(() => {
+      setShieldTapCount(0);
+      setVersionTapCount(0);
+      setDebugSequenceActive(false);
+    }, 5000);
+  };
+
+  // Handle authentication completion (called from setup mode with new PIN)
+  const handleAuthenticationComplete = async (pin) => {
+    try {
+      // Check if we're changing PIN (appLockEnabled is already true) or enabling for first time
+      const isChangingPin = appLockEnabled;
+
+      // Save PIN and enable app lock
+      await SecureStore.setItemAsync('appPin', pin);
+      await SecureStore.setItemAsync('appLockEnabled', 'true');
+      setStoredPin(pin);
+      setAppLockEnabled(true);
+      setIsAuthenticated(true);
+      setShowAuthScreen(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (isChangingPin) {
+        Alert.alert(t.success, t.pinChanged);
+      } else {
+        Alert.alert(t.success, t.appLockEnabled);
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      Alert.alert(t.error, t.authenticationFailed);
+    }
+  };
+
+  // Handle authentication via biometric (called from AuthenticationScreen)
+  const handleAuthenticationSuccess = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Check if we're trying to change PIN
+    if (pendingChangePin) {
+      // After verifying old PIN, show setup screen for new PIN
+      // Don't clear pendingChangePin yet to keep disableBiometric true during transition
+      setTimeout(() => {
+        setPendingChangePin(false); // Clear flag after mode change
+        setAuthMode('setup');
+        setShowAuthScreen(true);
+      }, 300);
+      return;
+    }
+
+    // Check if we're trying to disable app lock
+    if (pendingDisableAppLock) {
+      setPendingDisableAppLock(false);
+      setShowAuthScreen(false); // Hide the PIN screen before showing dialog
+      // Show confirmation dialog after successful authentication
+      Alert.alert(
+        t.disableAppLock,
+        t.disableAppLockConfirm,
+        [
+          { text: t.cancel, style: 'cancel' },
+          {
+            text: t.disable,
+            style: 'destructive',
+            onPress: async () => {
+              await SecureStore.deleteItemAsync('appLockEnabled');
+              await SecureStore.deleteItemAsync('appPin');
+              setAppLockEnabled(false);
+              setStoredPin(null);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(t.success, t.appLockDisabled);
+            }
+          }
+        ]
+      );
+      return;
+    }
+
+    // Only set authenticated and hide screen if not in special flows
+    setIsAuthenticated(true);
+    setShowAuthScreen(false);
+  };
+
+  // Handle authentication cancel
+  const handleAuthenticationCancel = () => {
+    setShowAuthScreen(false);
+    setPendingDisableAppLock(false);
+    setPendingChangePin(false);
   };
 
   // Handle Android back button
@@ -917,6 +1270,20 @@ export default function App() {
     loadPreferences();
   }, []);
 
+  // Handle Android back button for Settings detail screens
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // If we're in a Settings detail screen, go back to menu
+      if (currentScreen === 'settings' && settingsDetailScreen !== null) {
+        setSettingsDetailScreen(null);
+        return true; // Prevent default back behavior
+      }
+      return false; // Let default back behavior happen
+    });
+
+    return () => backHandler.remove();
+  }, [currentScreen, settingsDetailScreen]);
+
   // Save device mode preference when it changes
   const handleDeviceModeChange = async (onlineMode) => {
     try {
@@ -933,7 +1300,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error saving device mode:', error);
-      Alert.alert('Error', 'Failed to save device mode preference');
+      Alert.alert(t.error, t.failedToSaveDeviceMode);
     }
   };
 
@@ -1153,13 +1520,15 @@ export default function App() {
   // Render home screen
   const renderHomeScreen = () => (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleShieldTap} activeOpacity={1}>
           <Ionicons name="shield-checkmark" size={48} color="#4CAF50" />
-          <Text style={styles.title}>{t.appTitle}</Text>
-          <Text style={styles.subtitle}>{t.appSubtitle}</Text>
-        </View>
+        </TouchableOpacity>
+        <Text style={styles.title}>{t.appTitle}</Text>
+        <Text style={styles.subtitle}>{t.appSubtitle}</Text>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.buttonContainer}>
           <View style={styles.buttonRow}>
             <TouchableOpacity
@@ -1235,13 +1604,24 @@ export default function App() {
               <Text style={styles.buttonSubtext}>{t.settingsSubtext}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Network Status Indicator */}
+          <View style={styles.networkStatusContainer}>
+            <View style={[styles.networkStatusDot, isOnlineStatus ? styles.onlineDot : styles.offlineDot]} />
+            <Text style={styles.networkStatusText}>
+              {isOnlineStatus ? 'Online' : 'Offline'}
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
-      <View style={styles.versionInfo}>
+      <TouchableOpacity
+        style={[styles.versionInfo, { paddingBottom: Math.max(insets.bottom, 15) }]}
+        onPress={handleVersionTap}
+        activeOpacity={1}
+      >
         <Text style={styles.versionText}>{t.version} {Constants.expoConfig?.version || '1.0.0'}</Text>
-        <Text style={styles.versionSubtext}>AES-256-CBC • PBKDF2</Text>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 
@@ -1252,7 +1632,8 @@ export default function App() {
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.encryptTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.encryptTitle}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -1443,7 +1824,8 @@ export default function App() {
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.decryptTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.decryptTitle}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -1613,7 +1995,8 @@ export default function App() {
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.strengthTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.strengthTitle}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -1700,7 +2083,8 @@ export default function App() {
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.securityTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.securityTitle}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -1844,7 +2228,8 @@ export default function App() {
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.qrCodeTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.qrCodeTitle}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
@@ -2016,18 +2401,131 @@ export default function App() {
     );
   };
 
-  const renderSettingsScreen = () => (
+  // Settings Menu List
+  const renderSettingsMenu = () => (
     <View style={styles.container}>
       <View style={styles.screenHeader}>
         <TouchableOpacity onPress={() => setCurrentScreen('home')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.screenTitle}>{t.settingsTitle}</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.settingsTitle}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.settingsMenuList}>
+          {/* Device Mode */}
+          <TouchableOpacity
+            style={styles.settingsMenuItem}
+            onPress={() => {
+              setSettingsDetailScreen('deviceMode');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          >
+            <View style={styles.settingsMenuItemLeft}>
+              <View style={[styles.settingsMenuIcon, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="shield-checkmark" size={24} color="#FF9800" />
+              </View>
+              <View style={styles.settingsMenuItemText}>
+                <Text style={styles.settingsMenuItemTitle}>{t.deviceMode}</Text>
+                <Text style={styles.settingsMenuItemSubtitle}>
+                  {isOnlineMode ? t.onlineMode : t.offlineMode}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#999" />
+          </TouchableOpacity>
+
+          {/* App Lock */}
+          <TouchableOpacity
+            style={styles.settingsMenuItem}
+            onPress={() => {
+              setSettingsDetailScreen('appLock');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          >
+            <View style={styles.settingsMenuItemLeft}>
+              <View style={[styles.settingsMenuIcon, { backgroundColor: '#FFEBEE' }]}>
+                <Ionicons name="lock-closed" size={24} color="#FF5722" />
+              </View>
+              <View style={styles.settingsMenuItemText}>
+                <Text style={styles.settingsMenuItemTitle}>{t.appLock}</Text>
+                <Text style={styles.settingsMenuItemSubtitle}>
+                  {appLockEnabled ? t.enabled : t.disabled}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#999" />
+          </TouchableOpacity>
+
+          {/* Language */}
+          <TouchableOpacity
+            style={styles.settingsMenuItem}
+            onPress={() => {
+              setSettingsDetailScreen('language');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          >
+            <View style={styles.settingsMenuItemLeft}>
+              <View style={[styles.settingsMenuIcon, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="language" size={24} color="#4CAF50" />
+              </View>
+              <View style={styles.settingsMenuItemText}>
+                <Text style={styles.settingsMenuItemTitle}>{t.language}</Text>
+                <Text style={styles.settingsMenuItemSubtitle}>
+                  {language === 'en' ? t.english : t.chinese}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#999" />
+          </TouchableOpacity>
+
+          {/* Premium */}
+          <TouchableOpacity
+            style={styles.settingsMenuItem}
+            onPress={() => {
+              setSettingsDetailScreen('premium');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          >
+            <View style={styles.settingsMenuItemLeft}>
+              <View style={[styles.settingsMenuIcon, { backgroundColor: '#FFFDE7' }]}>
+                <Ionicons name="star" size={24} color="#FFD700" />
+              </View>
+              <View style={styles.settingsMenuItemText}>
+                <Text style={styles.settingsMenuItemTitle}>{t.premium}</Text>
+                <Text style={styles.settingsMenuItemSubtitle}>
+                  {isPremium ? t.premiumActive : t.upgradeToPremium}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#999" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+
+  // Settings Detail Screens
+  const renderSettingsScreen = () => {
+    if (settingsDetailScreen === null) {
+      return renderSettingsMenu();
+    }
+
+    // Device Mode Detail
+    if (settingsDetailScreen === 'deviceMode') {
+      return (
+    <View style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => setSettingsDetailScreen(null)} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.deviceMode}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.form}>
-        {/* Device Mode Section */}
         <View style={styles.settingsSection}>
           <View style={styles.sectionHeader}>
             <Ionicons name="shield-checkmark" size={24} color="#FF9800" />
@@ -2059,7 +2557,11 @@ export default function App() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.languageOption, isOnlineMode && styles.languageOptionSelected]}
+            style={[
+              styles.languageOption,
+              isOnlineMode && styles.languageOptionSelected,
+              isOnlineMode && { borderColor: '#FF9800', backgroundColor: '#FFF3E0' }
+            ]}
             onPress={() => {
               handleDeviceModeChange(true);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2069,7 +2571,11 @@ export default function App() {
               <View style={styles.languageOptionLeft}>
                 <Ionicons name="wifi" size={20} color={isOnlineMode ? '#FF9800' : '#666'} />
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={[styles.languageOptionText, isOnlineMode && styles.languageOptionTextSelected]}>
+                  <Text style={[
+                    styles.languageOptionText,
+                    isOnlineMode && styles.languageOptionTextSelected,
+                    isOnlineMode && { color: '#FF9800' }
+                  ]}>
                     {t.onlineMode}
                   </Text>
                   <Text style={styles.deviceModeDesc}>{t.onlineModeDesc}</Text>
@@ -2081,7 +2587,238 @@ export default function App() {
             </View>
           </TouchableOpacity>
         </View>
+        </View>
+      </ScrollView>
+    </View>
+      );
+    }
 
+    // App Lock Detail
+    if (settingsDetailScreen === 'appLock') {
+      return (
+    <View style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => setSettingsDetailScreen(null)} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.appLock}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
+        <View style={styles.settingsSection}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="lock-closed" size={24} color="#FF5722" />
+            <Text style={styles.sectionTitle}>{t.appLock}</Text>
+          </View>
+          <Text style={styles.settingsLabel}>
+            {t.appLockDescription}
+          </Text>
+
+          {/* Disabled Option */}
+          <TouchableOpacity
+            style={[styles.languageOption, !appLockEnabled && styles.languageOptionSelected]}
+            onPress={() => {
+              if (appLockEnabled) {
+                // Require PIN verification before disabling
+                setPendingDisableAppLock(true);
+                setAuthMode('verify');
+                setShowAuthScreen(true);
+              } else {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+          >
+            <View style={styles.languageOptionContent}>
+              <View style={styles.languageOptionLeft}>
+                <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="lock-open" size={20} color={!appLockEnabled ? '#999' : '#666'} />
+                </View>
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={[styles.languageOptionText, !appLockEnabled && styles.languageOptionTextSelected]}>
+                    {t.disabled}
+                  </Text>
+                  <Text style={styles.deviceModeDesc}>{t.noPinProtection}</Text>
+                </View>
+              </View>
+              {!appLockEnabled && (
+                <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Enabled Option */}
+          <TouchableOpacity
+            style={[
+              styles.languageOption,
+              appLockEnabled && styles.languageOptionSelected,
+              appLockEnabled && { borderColor: '#FF5722', backgroundColor: '#FFEBEE' }
+            ]}
+            onPress={() => {
+              if (!appLockEnabled) {
+                // Enable app lock - show setup screen
+                setAuthMode('setup');
+                setShowAuthScreen(true);
+              } else {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+          >
+            <View style={styles.languageOptionContent}>
+              <View style={styles.languageOptionLeft}>
+                <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="lock-closed" size={20} color={appLockEnabled ? '#FF5722' : '#666'} />
+                </View>
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={[
+                    styles.languageOptionText,
+                    appLockEnabled && styles.languageOptionTextSelected,
+                    appLockEnabled && { color: '#FF5722' }
+                  ]}>
+                    {t.enabled}
+                  </Text>
+                  <Text style={styles.deviceModeDesc}>{t.pinProtection}</Text>
+                </View>
+              </View>
+              {appLockEnabled && (
+                <Ionicons name="checkmark-circle" size={24} color="#FF5722" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Show Change PIN option when enabled */}
+          {appLockEnabled && (
+            <TouchableOpacity
+              style={[styles.languageOption, { marginTop: 16 }]}
+              onPress={() => {
+                // First verify current PIN before allowing change
+                setPendingChangePin(true);
+                setAuthMode('verify');
+                setShowAuthScreen(true);
+              }}
+            >
+              <View style={styles.languageOptionContent}>
+                <View style={styles.languageOptionLeft}>
+                  <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="key" size={20} color="#007AFF" />
+                  </View>
+                  <Text style={[styles.languageOptionText, { marginLeft: 10 }]}>{t.changePin}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Auto-Lock Timer Settings - Only show when App Lock is enabled */}
+        {appLockEnabled && (
+          <View style={styles.settingsSection}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="time" size={24} color="#FF9800" />
+              <Text style={styles.sectionTitle}>{t.autoLockTimer}</Text>
+            </View>
+            <Text style={styles.settingsLabel}>
+              {t.autoLockTimerDescription}
+            </Text>
+
+            {/* Immediate */}
+            <TouchableOpacity
+              style={[styles.languageOption, autoLockTimeout === 0 && styles.languageOptionSelected]}
+              onPress={async () => {
+                setAutoLockTimeout(0);
+                await SecureStore.setItemAsync('autoLockTimeout', '0');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <View style={styles.languageOptionContent}>
+                <Text style={[styles.languageOptionText, autoLockTimeout === 0 && styles.languageOptionTextSelected]}>
+                  {t.immediately}
+                </Text>
+                {autoLockTimeout === 0 && (
+                  <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* 30 seconds */}
+            <TouchableOpacity
+              style={[styles.languageOption, autoLockTimeout === 30 && styles.languageOptionSelected]}
+              onPress={async () => {
+                setAutoLockTimeout(30);
+                await SecureStore.setItemAsync('autoLockTimeout', '30');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <View style={styles.languageOptionContent}>
+                <Text style={[styles.languageOptionText, autoLockTimeout === 30 && styles.languageOptionTextSelected]}>
+                  {t.thirtySeconds}
+                </Text>
+                {autoLockTimeout === 30 && (
+                  <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* 1 minute */}
+            <TouchableOpacity
+              style={[styles.languageOption, autoLockTimeout === 60 && styles.languageOptionSelected]}
+              onPress={async () => {
+                setAutoLockTimeout(60);
+                await SecureStore.setItemAsync('autoLockTimeout', '60');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <View style={styles.languageOptionContent}>
+                <Text style={[styles.languageOptionText, autoLockTimeout === 60 && styles.languageOptionTextSelected]}>
+                  {t.oneMinuteDefault}
+                </Text>
+                {autoLockTimeout === 60 && (
+                  <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* 5 minutes */}
+            <TouchableOpacity
+              style={[styles.languageOption, autoLockTimeout === 300 && styles.languageOptionSelected]}
+              onPress={async () => {
+                setAutoLockTimeout(300);
+                await SecureStore.setItemAsync('autoLockTimeout', '300');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <View style={styles.languageOptionContent}>
+                <Text style={[styles.languageOptionText, autoLockTimeout === 300 && styles.languageOptionTextSelected]}>
+                  {t.fiveMinutes}
+                </Text>
+                {autoLockTimeout === 300 && (
+                  <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+        </View>
+      </ScrollView>
+    </View>
+      );
+    }
+
+    // Language Detail
+    if (settingsDetailScreen === 'language') {
+      return (
+    <View style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => setSettingsDetailScreen(null)} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.language}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         <View style={styles.settingsSection}>
           <View style={styles.sectionHeader}>
             <Ionicons name="language" size={24} color="#4CAF50" />
@@ -2129,8 +2866,26 @@ export default function App() {
             </View>
           </TouchableOpacity>
         </View>
+        </View>
+      </ScrollView>
+    </View>
+      );
+    }
 
-        {/* Premium Section */}
+    // Premium Detail
+    if (settingsDetailScreen === 'premium') {
+      return (
+    <View style={styles.container}>
+      <View style={styles.screenHeader}>
+        <TouchableOpacity onPress={() => setSettingsDetailScreen(null)} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.screenTitle} numberOfLines={1}>{t.premium}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.scrollContainer}>
+        <View style={styles.form}>
         <View style={styles.settingsSection}>
           <View style={styles.sectionHeader}>
             <Ionicons name="star" size={24} color="#FFD700" />
@@ -2141,14 +2896,6 @@ export default function App() {
               <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
               <Text style={styles.premiumActiveText}>{t.premiumActive}</Text>
               <Text style={styles.premiumActiveSubtext}>{t.premiumDescription}</Text>
-
-              <TouchableOpacity
-                style={styles.restoreButton}
-                onPress={restorePurchases}
-              >
-                <Ionicons name="refresh" size={18} color="#9C27B0" />
-                <Text style={styles.restoreButtonText}>{t.restorePurchases}</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <View>
@@ -2193,177 +2940,186 @@ export default function App() {
         </View>
       </ScrollView>
     </View>
-  );
+      );
+    }
+
+    // Return to menu if no detail screen is selected
+    return renderSettingsMenu();
+  };
 
   // Main render
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" translucent={false} />
-      <View style={styles.contentContainer}>
-        {currentScreen === 'home' && renderHomeScreen()}
-        {currentScreen === 'encrypt' && renderEncryptScreen()}
-        {currentScreen === 'decrypt' && renderDecryptScreen()}
-        {currentScreen === 'strength' && renderStrengthScreen()}
-        {currentScreen === 'security' && renderSecurityScreen()}
-        {currentScreen === 'qrcode' && renderQRCodeScreen()}
-        {currentScreen === 'settings' && renderSettingsScreen()}
-      </View>
 
-      {renderQRScannerModal()}
+        {/* Show authentication screen if app lock is enabled and not authenticated */}
+        {showAuthScreen ? (
+          <AuthenticationScreen
+            mode={authMode}
+            storedPin={storedPin}
+            onAuthenticated={authMode === 'setup' ? handleAuthenticationComplete : handleAuthenticationSuccess}
+            onCancel={(authMode === 'setup' || pendingChangePin || pendingDisableAppLock) ? handleAuthenticationCancel : null}
+            disableBiometric={pendingChangePin || pendingDisableAppLock}
+            t={t}
+          />
+        ) : (
+          <View style={styles.contentContainer}>
+            {currentScreen === 'home' && renderHomeScreen()}
+            {currentScreen === 'encrypt' && renderEncryptScreen()}
+            {currentScreen === 'decrypt' && renderDecryptScreen()}
+            {currentScreen === 'strength' && renderStrengthScreen()}
+            {currentScreen === 'security' && renderSecurityScreen()}
+            {currentScreen === 'qrcode' && renderQRCodeScreen()}
+            {currentScreen === 'settings' && renderSettingsScreen()}
+          </View>
+        )}
 
-      {/* QR Code Display Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showQRModal}
-        onRequestClose={() => setShowQRModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t.qrCode}</Text>
+        {renderQRScannerModal()}
+
+        {/* QR Code Display Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showQRModal}
+          onRequestClose={() => setShowQRModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{t.qrCode}</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setShowQRModal(false)}
+                >
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.qrModalLabel}>
+                {t.scanQrCodeToGetText}
+              </Text>
+
+              <View style={styles.qrModalWrapper}>
+                <QRCode
+                  value={encryptedResult}
+                  size={250}
+                  backgroundColor="white"
+                  color="black"
+                />
+              </View>
+
               <TouchableOpacity
-                style={styles.closeButton}
+                style={styles.modalCloseButton}
                 onPress={() => setShowQRModal(false)}
               >
-                <Ionicons name="close" size={24} color="#666" />
+                <Text style={styles.modalCloseButtonText}>{t.close}</Text>
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.qrModalLabel}>
-              {t.scanQrCodeToGetText}
-            </Text>
-
-            <View style={styles.qrModalWrapper}>
-              <QRCode
-                value={encryptedResult}
-                size={250}
-                backgroundColor="white"
-                color="black"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowQRModal(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>{t.close}</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* QR Code Scanner Modal (for Decrypt) */}
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={showQRScanner}
-        onRequestClose={() => setShowQRScanner(false)}
-      >
-        <View style={styles.scannerContainer}>
-          {hasPermission === null ? (
-            <View style={styles.permissionContainer}>
-              <Text style={styles.permissionText}>{t.requestingCameraPermission}</Text>
-            </View>
-          ) : hasPermission === false ? (
-            <View style={styles.permissionContainer}>
-              <Text style={styles.permissionText}>{t.noAccessToCamera}</Text>
-              <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
-                <Text style={styles.permissionButtonText}>{t.grantPermission}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <CameraView
-              style={styles.camera}
-              barcodeScannerSettings={{
-                barcodeTypes: ['qr'],
-              }}
-              onBarcodeScanned={handleBarCodeScanned}
-            >
-              <View style={styles.scannerOverlay}>
-                <View style={styles.scannerTopBar}>
-                  <TouchableOpacity onPress={() => setShowQRScanner(false)} style={styles.scannerCloseButton}>
-                    <Ionicons name="close" size={28} color="white" />
-                  </TouchableOpacity>
-                  <View style={styles.scannerTopBarContent}>
-                    <Text style={styles.scannerTitle}>{t.scanQrCode}</Text>
-                    <Text style={styles.scannerSubtitle}>{t.positionQrCodeInFrame}</Text>
-                  </View>
-                  <View style={styles.scannerPlaceholder} />
-                </View>
-
-                <View style={styles.scannerCenter}>
-                  <View style={styles.scannerFrame} />
-                </View>
-
-                <View style={styles.scannerBottomBar} />
+        {/* QR Code Scanner Modal (for Decrypt) */}
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={showQRScanner}
+          onRequestClose={() => setShowQRScanner(false)}
+        >
+          <View style={styles.scannerContainer}>
+            {hasPermission === null ? (
+              <View style={styles.permissionContainer}>
+                <Text style={styles.permissionText}>{t.requestingCameraPermission}</Text>
               </View>
-            </CameraView>
-          )}
-        </View>
-      </Modal>
-
-      {/* Premium Upgrade Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showPremiumModal}
-        onRequestClose={() => setShowPremiumModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.premiumModalContent}>
-            <View style={styles.premiumModalHeader}>
-              <Ionicons name="star" size={48} color="#FFD700" />
-              <Text style={styles.premiumModalTitle}>{t.premiumFeature}</Text>
-            </View>
-
-            <Text style={styles.premiumModalMessage}>
-              {t.premiumPromptMessage}
-            </Text>
-
-            <View style={styles.premiumModalButtons}>
-              <TouchableOpacity
-                style={[styles.premiumModalButton, styles.premiumModalButtonSecondary]}
-                onPress={() => setShowPremiumModal(false)}
-              >
-                <Text style={styles.premiumModalButtonSecondaryText}>{t.maybeLater}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.premiumModalButton, styles.premiumModalButtonPrimary]}
-                onPress={() => {
-                  setShowPremiumModal(false);
-                  // For now, just show an alert
-                  // In production, this would call: purchasePremium();
-                  Alert.alert(
-                    t.premium,
-                    'Premium purchase will be integrated with App Store/Play Store in-app purchases. For testing, you can toggle isPremium in the code.',
-                    [{ text: 'OK' }]
-                  );
+            ) : hasPermission === false ? (
+              <View style={styles.permissionContainer}>
+                <Text style={styles.permissionText}>{t.noAccessToCamera}</Text>
+                <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
+                  <Text style={styles.permissionButtonText}>{t.grantPermission}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <CameraView
+                style={styles.camera}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['qr'],
                 }}
-                disabled={isPurchasing}
+                onBarcodeScanned={handleBarCodeScanned}
               >
-                {isPurchasing ? (
-                  <Text style={styles.premiumModalButtonPrimaryText}>{t.purchasing}</Text>
-                ) : (
-                  <>
-                    <Ionicons name="star" size={20} color="white" />
-                    <Text style={styles.premiumModalButtonPrimaryText}>{t.upgradeNow}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                <View style={styles.scannerOverlay}>
+                  <View style={styles.scannerTopBar}>
+                    <TouchableOpacity onPress={() => setShowQRScanner(false)} style={styles.scannerCloseButton}>
+                      <Ionicons name="close" size={28} color="white" />
+                    </TouchableOpacity>
+                    <View style={styles.scannerTopBarContent}>
+                      <Text style={styles.scannerTitle}>{t.scanQrCode}</Text>
+                      <Text style={styles.scannerSubtitle}>{t.positionQrCodeInFrame}</Text>
+                    </View>
+                    <View style={styles.scannerPlaceholder} />
+                  </View>
+
+                  <View style={styles.scannerCenter}>
+                    <View style={styles.scannerFrame} />
+                  </View>
+
+                  <View style={styles.scannerBottomBar} />
+                </View>
+              </CameraView>
+            )}
+          </View>
+        </Modal>
+
+        {/* Premium Upgrade Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={showPremiumModal}
+          onRequestClose={() => setShowPremiumModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.premiumModalContent}>
+              <View style={styles.premiumModalHeader}>
+                <Ionicons name="star" size={48} color="#FFD700" />
+                <Text style={styles.premiumModalTitle}>{t.premiumFeature}</Text>
+              </View>
+
+              <Text style={styles.premiumModalMessage}>
+                {t.premiumPromptMessage}
+              </Text>
+
+              <View style={styles.premiumModalButtons}>
+                <TouchableOpacity
+                  style={[styles.premiumModalButton, styles.premiumModalButtonSecondary]}
+                  onPress={() => setShowPremiumModal(false)}
+                >
+                  <Text style={styles.premiumModalButtonSecondaryText}>{t.maybeLater}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.premiumModalButton, styles.premiumModalButtonPrimary]}
+                  onPress={purchasePremium}
+                  disabled={isPurchasing}
+                >
+                  {isPurchasing ? (
+                    <Text style={styles.premiumModalButtonPrimaryText}>{t.purchasing}</Text>
+                  ) : (
+                    <>
+                      <Ionicons name="star" size={20} color="white" />
+                      <Text style={styles.premiumModalButtonPrimaryText}>{t.upgradeNow}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Mnemonic Scanner Modal */}
-      <MnemonicScanModal
-        visible={showMnemonicScanner}
-        onClose={() => setShowMnemonicScanner(false)}
-        onMnemonicRecognized={handleMnemonicRecognized}
-        translations={t}
-      />
+        {/* Mnemonic Scanner Modal */}
+        <MnemonicScanModal
+          visible={showMnemonicScanner}
+          onClose={() => setShowMnemonicScanner(false)}
+          onMnemonicRecognized={handleMnemonicRecognized}
+          translations={t}
+        />
     </SafeAreaView>
   );
 }
@@ -2372,10 +3128,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    // paddingTop is applied dynamically using insets.top in the render method
   },
   contentContainer: {
     flex: 1,
-    paddingTop: 40, // Restored padding to avoid status bar overlap
   },
   container: {
     flex: 1,
@@ -2422,11 +3178,20 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     includeFontPadding: false,
     textAlignVertical: 'center',
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   backButton: {
-    position: 'absolute',
-    left: 20,
-    padding: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  headerSpacer: {
+    width: 44,
+    marginRight: 8,
   },
   buttonContainer: {
     paddingHorizontal: 26,
@@ -2580,7 +3345,8 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   multilineInput: {
-    minHeight: 80,
+    minHeight: 120,
+    maxHeight: 200,
     textAlignVertical: 'top',
   },
   // Mnemonic validation bar styles
@@ -2858,6 +3624,7 @@ const styles = StyleSheet.create({
   premiumModalButtons: {
     flexDirection: 'row',
     width: '100%',
+    justifyContent: 'space-between',
     gap: 12,
   },
   premiumModalButton: {
@@ -3341,6 +4108,32 @@ const styles = StyleSheet.create({
   mnemonicWordStatusInvalid: {
     color: '#C62828',
   },
+  networkStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  networkStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  onlineDot: {
+    backgroundColor: '#4CAF50',
+  },
+  offlineDot: {
+    backgroundColor: '#9E9E9E',
+  },
+  networkStatusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
   versionInfo: {
     alignItems: 'center',
     paddingVertical: 15,
@@ -3353,7 +4146,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
-    marginBottom: 4,
   },
   versionSubtext: {
     fontSize: 11,
@@ -3395,7 +4187,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
   },
   languageOptionLeft: {
     flexDirection: 'row',
@@ -3560,4 +4351,59 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
   },
+  // Settings Menu Styles
+  settingsMenuList: {
+    padding: 16,
+  },
+  settingsMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  settingsMenuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingsMenuIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  settingsMenuItemText: {
+    flex: 1,
+  },
+  settingsMenuItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 2,
+  },
+  settingsMenuItemSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
 });
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
